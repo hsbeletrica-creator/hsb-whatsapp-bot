@@ -4,29 +4,45 @@ import axios from "axios";
 const app = express();
 app.use(express.json());
 
-// Railway SEMPRE fornece a porta
 const PORT = process.env.PORT;
 
 // ================================
-// ROTA DE SAÚDE (OBRIGATÓRIA)
+// ROTA DE SAÚDE (Railway)
 // ================================
 app.get("/", (req, res) => {
   res.status(200).send("HSB WhatsApp Bot ONLINE 🚀");
 });
 
 // ================================
-// FUNÇÃO SEGURA PARA PEGAR TEXTO
+// EXTRATOR UNIVERSAL DE TEXTO Z-API
 // ================================
-function extractMessageText(body) {
+function getMessageText(body) {
   if (!body) return null;
 
-  // Casos mais comuns da Z-API
-  if (typeof body.text === "string") return body.text;
+  if (typeof body === "string") return body;
+
   if (typeof body.message === "string") return body.message;
-  if (typeof body.message?.text === "string") return body.message.text;
   if (typeof body.body === "string") return body.body;
 
+  if (typeof body.text === "string") return body.text;
+  if (typeof body.text?.message === "string") return body.text.message;
+
+  if (typeof body.message?.text === "string") return body.message.text;
+
   return null;
+}
+
+// ================================
+// EXTRATOR UNIVERSAL DE TELEFONE
+// ================================
+function getPhone(body) {
+  return (
+    body?.phone ||
+    body?.from ||
+    body?.sender ||
+    body?.participant ||
+    null
+  );
 }
 
 // ================================
@@ -34,28 +50,23 @@ function extractMessageText(body) {
 // ================================
 app.post("/webhook", async (req, res) => {
   try {
-    const phone =
-      req.body?.phone ||
-      req.body?.from ||
-      req.body?.sender ||
-      null;
+    const phone = getPhone(req.body);
+    const message = getMessageText(req.body);
 
-    const message = extractMessageText(req.body);
-
-    // Se não for mensagem válida, apenas confirma
     if (!phone || !message) {
       console.log("Evento ignorado (sem mensagem válida)");
       return res.sendStatus(200);
     }
 
     const text = message.toString().toLowerCase();
+    console.log("Mensagem recebida:", text);
 
     let reply =
-      "Olá! 👋\n\nObrigado pela mensagem.\nEm breve retornaremos com mais informações.";
+      "Olá! 👋\n\nObrigado pelo contato.\nEm breve retornaremos.";
 
     if (text.includes("oi") || text.includes("olá")) {
       reply =
-        "Olá! 👋\n\nObrigado pelo contato com a *HSB Elétrica & Renováveis* ⚡☀️\n\nComo posso te ajudar?";
+        "Olá! 👋\n\nBem-vindo à *HSB Elétrica & Renováveis* ⚡☀️\n\nComo posso te ajudar?";
     }
 
     if (
@@ -64,7 +75,7 @@ app.post("/webhook", async (req, res) => {
       text.includes("informacao")
     ) {
       reply =
-        "Perfeito! 😊\n\nPara te ajudar melhor, pode me dizer:\n\n1️⃣ Cidade\n2️⃣ Tipo de serviço (elétrica, solar, manutenção)\n3️⃣ Residencial ou comercial?";
+        "Perfeito! 😊\n\nPara te atender melhor, informe:\n\n1️⃣ Cidade\n2️⃣ Tipo de serviço\n3️⃣ Residencial ou comercial";
     }
 
     // ================================
@@ -85,9 +96,9 @@ app.post("/webhook", async (req, res) => {
     );
 
     return res.sendStatus(200);
-  } catch (error) {
-    console.error("Erro no webhook:", error.message);
-    return res.sendStatus(200); // NUNCA derrubar o container
+  } catch (err) {
+    console.error("Erro no webhook:", err.message);
+    return res.sendStatus(200); // NUNCA derrubar o serviço
   }
 });
 
@@ -99,8 +110,8 @@ app.listen(PORT, "0.0.0.0", () => {
 });
 
 // ================================
-// TRATAMENTO DE ENCERRAMENTO
+// SHUTDOWN SEGURO
 // ================================
 process.on("SIGTERM", () => {
-  console.log("SIGTERM recebido. Serviço encerrando com segurança.");
+  console.log("SIGTERM recebido. Encerrando com segurança.");
 });
