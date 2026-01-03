@@ -20,7 +20,7 @@ app.get("/", (req, res) => {
 // WEBHOOK Z-API
 // ================================
 app.post("/webhook", async (req, res) => {
-  try {
+  try {oi
     const message = req.body?.message?.text;
     const phone = req.body?.phone;
 
@@ -67,7 +67,7 @@ app.post("/webhook", async (req, res) => {
       {
         headers: {
           "Content-Type": "application/json",
-          "Client-Token": process.env.zapi_token,
+          "Client-Token": process.env.ZAPI_TOKEN,
         },
       }
     );
