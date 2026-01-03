@@ -4,7 +4,8 @@ import axios from "axios";
 const app = express();
 app.use(express.json());
 
-const PORT = process.env.PORT;
+// ⚠️ OBRIGATÓRIO PARA O RAILWAY
+const PORT = process.env.PORT || 8080;
 
 // ================================
 // ROTA DE SAÚDE (Railway)
@@ -14,27 +15,20 @@ app.get("/", (req, res) => {
 });
 
 // ================================
-// EXTRATOR UNIVERSAL DE TEXTO Z-API
+// FUNÇÕES DE EXTRAÇÃO SEGURAS
 // ================================
 function getMessageText(body) {
   if (!body) return null;
 
   if (typeof body === "string") return body;
-
-  if (typeof body.message === "string") return body.message;
   if (typeof body.body === "string") return body.body;
-
   if (typeof body.text === "string") return body.text;
   if (typeof body.text?.message === "string") return body.text.message;
-
   if (typeof body.message?.text === "string") return body.message.text;
 
   return null;
 }
 
-// ================================
-// EXTRATOR UNIVERSAL DE TELEFONE
-// ================================
 function getPhone(body) {
   return (
     body?.phone ||
@@ -58,7 +52,7 @@ app.post("/webhook", async (req, res) => {
       return res.sendStatus(200);
     }
 
-    const text = message.toString().toLowerCase();
+    const text = String(message).toLowerCase();
     console.log("Mensagem recebida:", text);
 
     let reply =
@@ -66,7 +60,7 @@ app.post("/webhook", async (req, res) => {
 
     if (text.includes("oi") || text.includes("olá")) {
       reply =
-        "Olá! 👋\n\nBem-vindo à *HSB Elétrica & Renováveis* ⚡☀️\n\nComo posso te ajudar?";
+        "Olá! 👋\n\nBem-vindo à *HSB Elétrica & Renováveis* ⚡☀️\n\nComo posso ajudar?";
     }
 
     if (
@@ -75,12 +69,9 @@ app.post("/webhook", async (req, res) => {
       text.includes("informacao")
     ) {
       reply =
-        "Perfeito! 😊\n\nPara te atender melhor, informe:\n\n1️⃣ Cidade\n2️⃣ Tipo de serviço\n3️⃣ Residencial ou comercial";
+        "Perfeito! 😊\n\nPara te atender melhor, me diga:\n\n1️⃣ Cidade\n2️⃣ Tipo de serviço\n3️⃣ Residencial ou comercial";
     }
 
-    // ================================
-    // ENVIO VIA Z-API
-    // ================================
     await axios.post(
       `${process.env.ZAPI_URL}/send-text`,
       {
@@ -98,20 +89,13 @@ app.post("/webhook", async (req, res) => {
     return res.sendStatus(200);
   } catch (err) {
     console.error("Erro no webhook:", err.message);
-    return res.sendStatus(200); // NUNCA derrubar o serviço
+    return res.sendStatus(200); // NUNCA derruba o container
   }
 });
 
 // ================================
-// START SERVER
+// START SERVER (MANTÉM O CONTAINER VIVO)
 // ================================
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`HSB bot rodando na porta ${PORT}`);
-});
-
-// ================================
-// SHUTDOWN SEGURO
-// ================================
-process.on("SIGTERM", () => {
-  console.log("SIGTERM recebido. Encerrando com segurança.");
 });
