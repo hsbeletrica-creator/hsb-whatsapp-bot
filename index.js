@@ -2,69 +2,74 @@ import express from "express";
 import axios from "axios";
 
 const app = express();
-
-/**
- * Middleware obrigatório
- */
 app.use(express.json());
 
-/**
- * Railway injeta PORT automaticamente
- * fallback é OBRIGATÓRIO
- */
-const PORT = process.env.PORT || 8080;
+// ===============================
+// CONFIGURAÇÕES
+// ===============================
+const PORT = process.env.PORT;
+const ZAPI_URL = process.env.ZAPI_URL;
+const ZAPI_TOKEN = process.env.ZAPI_TOKEN;
 
-/**
- * ===============================
- * ROTA DE SAÚDE (CRÍTICA)
- * ===============================
- */
+if (!PORT) {
+  console.error("❌ PORT não definida");
+  process.exit(1);
+}
+
+// ===============================
+// ROTA DE SAÚDE (OBRIGATÓRIA)
+// ===============================
 app.get("/", (req, res) => {
-  res.status(200).send("HSB WhatsApp Bot ONLINE");
+  res.status(200).send("HSB WhatsApp Bot ONLINE 🚀");
 });
 
-/**
- * ===============================
- * WEBHOOK DA Z-API
- * ===============================
- */
+// ===============================
+// WEBHOOK Z-API
+// ===============================
 app.post("/webhook", async (req, res) => {
   try {
-    console.log("Webhook recebido:", JSON.stringify(req.body));
-
     const message =
       req.body?.message?.text ||
       req.body?.text ||
-      req.body?.body?.text ||
       "";
 
     const phone =
       req.body?.phone ||
       req.body?.from ||
-      req.body?.body?.phone ||
       "";
 
     if (!message || !phone) {
       return res.sendStatus(200);
     }
 
-    /**
-     * RESPOSTA AUTOMÁTICA
-     */
-    const reply =
-      "Olá! 👋😊\n\n" +
-      "Obrigado por entrar em contato com a *HSB Elétrica & Renováveis* ⚡🌞\n\n" +
-      "Recebemos sua mensagem e em breve nossa equipe irá te atender.\n\n" +
-      "Se quiser adiantar, nos informe:\n" +
-      "• Qual serviço você procura\n" +
-      "• Sua cidade\n\n" +
-      "Estamos à disposição!";
+    const text = message.toLowerCase();
 
-    /**
-     * ENVIO VIA Z-API
-     */
+    let reply =
+      "Obrigado pela mensagem! Em breve retornaremos com mais informações 😊";
+
+    if (
+      text.includes("oi") ||
+      text.includes("olá") ||
+      text.includes("ola")
+    ) {
+      reply =
+        "Olá! 👋 Somos da HSB Elétrica & Renováveis ⚡🌞\n\nTrabalhamos com:\n• Instalações elétricas\n• Energia solar\n• Manutenção residencial e comercial\n\nComo podemos te ajudar?";
+    }
+
+    if (
+      text.includes("interesse") ||
+      text.includes("informações") ||
+      text.includes("informacoes")
+    ) {
+      reply =
+        "Perfeito! 😊\n\nPara te ajudar melhor, pode nos informar:\n• Tipo de serviço\n• Cidade\n• Se é residencial ou comercial\n\nAssim retornamos rapidamente!";
+    }
+
+    // ===============================
+    // ENVIO VIA Z-API
+    // ===============================
     await axios.post(
-      `${process.env.ZAPI_URL}/send-text`,
+      `${ZAPI_URL}/send-text`,
       {
         phone,
         message: reply,
@@ -72,39 +77,28 @@ app.post("/webhook", async (req, res) => {
       {
         headers: {
           "Content-Type": "application/json",
-          "Client-Token": process.env.ZAPI_TOKEN,
+          "Client-Token": ZAPI_TOKEN,
         },
-        timeout: 10000,
       }
     );
 
-    console.log("Mensagem enviada com sucesso");
-    return res.sendStatus(200);
+    res.sendStatus(200);
   } catch (error) {
     console.error("Erro no webhook:", error.message);
-    // ⚠️ NUNCA devolver erro para a Z-API
-    return res.sendStatus(200);
+    res.sendStatus(200); // NUNCA retornar erro para a Z-API
   }
 });
 
-/**
- * ===============================
- * START SERVER (OBRIGATÓRIO)
- * ===============================
- */
+// ===============================
+// START SERVER
+// ===============================
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`HSB bot rodando na porta ${PORT}`);
+  console.log(`✅ HSB bot rodando na porta ${PORT}`);
 });
 
-/**
- * ===============================
- * EVITA FINALIZAÇÃO DO CONTAINER
- * ===============================
- */
+// ===============================
+// SIGTERM (Railway)
+// ===============================
 process.on("SIGTERM", () => {
-  console.log("SIGTERM recebido — ignorado para manter o serviço ativo");
-});
-
-process.on("SIGINT", () => {
-  console.log("SIGINT recebido");
+  console.log("⚠️ SIGTERM recebido. Railway está reiniciando o serviço.");
 });
