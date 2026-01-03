@@ -89,7 +89,7 @@ app.post("/webhook", async (req, res) => {
     return res.sendStatus(200);
   } catch (err) {
     console.error("Erro no webhook:", err.message);
-    return res.sendStatus(200); // NUNCA derruba o container
+    return res.sendStatus(200); // nunca derruba o container
   }
 });
 
