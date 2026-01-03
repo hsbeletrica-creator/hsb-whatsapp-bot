@@ -1,34 +1,44 @@
-require('dotenv').config();
-const express = require('express');
-const axios = require('axios');
+import express from "express";
+import axios from "axios";
 
 const app = express();
 app.use(express.json());
 
-app.post('/webhook', async (req, res) => {
+const PORT = process.env.PORT || 8080;
+
+// Rota de saúde (ESSENCIAL para o Railway)
+app.get("/", (req, res) => {
+  res.status(200).send("HSB WhatsApp Bot ONLINE");
+});
+
+// Webhook da Z-API
+app.post("/webhook", async (req, res) => {
   try {
-    const text = req.body?.message?.text;
+    const message = req.body?.message?.text;
     const phone = req.body?.phone;
 
-    if (!text || !phone) return res.sendStatus(200);
-
-    const prompt = `
-Você é o assistente virtual da HSB Elétrica & Renováveis.
-Responda de forma profissional, clara e objetiva.
-Se o cliente pedir orçamento, faça perguntas diretas.
-Mensagem do cliente: "${text}"
-`;
+    if (!message || !phone) {
+      return res.sendStatus(200);
+    }
 
     const ai = await axios.post(
-      'https://api.openai.com/v1/chat/completions',
+      "https://api.openai.com/v1/chat/completions",
       {
-        model: 'gpt-4.1-mini',
-        messages: [{ role: 'user', content: prompt }]
+        model: "gpt-4.1-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "Você é um atendente profissional da HSB Elétrica e Renováveis.",
+          },
+          { role: "user", content: message },
+        ],
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
-        }
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
       }
     );
 
@@ -38,23 +48,23 @@ Mensagem do cliente: "${text}"
       `${process.env.ZAPI_URL}/send-text`,
       {
         phone,
-        message: reply
+        message: reply,
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.ZAPI_TOKEN}`
-        }
+          "Content-Type": "application/json",
+          "Client-Token": process.env.ZAPI_TOKEN,
+        },
       }
     );
 
     res.sendStatus(200);
-  } catch (e) {
-    console.error(e);
-    res.sendStatus(500);
+  } catch (err) {
+    console.error("Erro no webhook:", err.message);
+    res.sendStatus(200);
   }
 });
 
-const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log('HSB bot rodando na porta', PORT);
+  console.log(`HSB bot rodando na porta ${PORT}`);
 });
