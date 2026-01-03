@@ -3,22 +3,31 @@ import axios from "axios";
 
 const app = express();
 
-// 🔹 Middleware obrigatório
+/**
+ * Middleware obrigatório
+ */
 app.use(express.json());
 
-// 🔹 Railway SEMPRE injeta a PORT
-const PORT = process.env.PORT;
+/**
+ * Railway injeta PORT automaticamente
+ * fallback é OBRIGATÓRIO
+ */
+const PORT = process.env.PORT || 8080;
 
-// ===============================
-// ROTA DE SAÚDE (OBRIGATÓRIA)
-// ===============================
+/**
+ * ===============================
+ * ROTA DE SAÚDE (CRÍTICA)
+ * ===============================
+ */
 app.get("/", (req, res) => {
   res.status(200).send("HSB WhatsApp Bot ONLINE");
 });
 
-// ===============================
-// WEBHOOK Z-API
-// ===============================
+/**
+ * ===============================
+ * WEBHOOK DA Z-API
+ * ===============================
+ */
 app.post("/webhook", async (req, res) => {
   try {
     console.log("Webhook recebido:", JSON.stringify(req.body));
@@ -26,34 +35,34 @@ app.post("/webhook", async (req, res) => {
     const message =
       req.body?.message?.text ||
       req.body?.text ||
-      req.body?.body?.text;
+      req.body?.body?.text ||
+      "";
 
     const phone =
       req.body?.phone ||
       req.body?.from ||
-      req.body?.body?.phone;
+      req.body?.body?.phone ||
+      "";
 
-    // Se não for mensagem válida, apenas responde OK
     if (!message || !phone) {
-      console.log("Evento ignorado (sem mensagem ou telefone)");
       return res.sendStatus(200);
     }
 
-    // ===============================
-    // RESPOSTA AUTOMÁTICA
-    // ===============================
-    let reply =
+    /**
+     * RESPOSTA AUTOMÁTICA
+     */
+    const reply =
       "Olá! 👋😊\n\n" +
-      "Obrigado pelo seu contato com a *HSB Elétrica & Renováveis* ⚡🌞\n\n" +
-      "Recebemos sua mensagem e em breve um especialista irá te atender.\n\n" +
-      "Se preferir, já pode nos dizer:\n" +
+      "Obrigado por entrar em contato com a *HSB Elétrica & Renováveis* ⚡🌞\n\n" +
+      "Recebemos sua mensagem e em breve nossa equipe irá te atender.\n\n" +
+      "Se quiser adiantar, nos informe:\n" +
       "• Qual serviço você procura\n" +
       "• Sua cidade\n\n" +
-      "Ficamos à disposição!";
+      "Estamos à disposição!";
 
-    // ===============================
-    // ENVIO VIA Z-API
-    // ===============================
+    /**
+     * ENVIO VIA Z-API
+     */
     await axios.post(
       `${process.env.ZAPI_URL}/send-text`,
       {
@@ -65,32 +74,37 @@ app.post("/webhook", async (req, res) => {
           "Content-Type": "application/json",
           "Client-Token": process.env.ZAPI_TOKEN,
         },
+        timeout: 10000,
       }
     );
 
-    console.log("Resposta enviada com sucesso");
+    console.log("Mensagem enviada com sucesso");
     return res.sendStatus(200);
   } catch (error) {
-    console.error("Erro no webhook:", error?.response?.data || error.message);
+    console.error("Erro no webhook:", error.message);
     // ⚠️ NUNCA devolver erro para a Z-API
     return res.sendStatus(200);
   }
 });
 
-// ===============================
-// START SERVER (CRÍTICO)
-// ===============================
-const server = app.listen(PORT, "0.0.0.0", () => {
+/**
+ * ===============================
+ * START SERVER (OBRIGATÓRIO)
+ * ===============================
+ */
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`HSB bot rodando na porta ${PORT}`);
 });
 
-// ===============================
-// EVITA SIGTERM
-// ===============================
+/**
+ * ===============================
+ * EVITA FINALIZAÇÃO DO CONTAINER
+ * ===============================
+ */
 process.on("SIGTERM", () => {
-  console.log("SIGTERM recebido. Mantendo serviço ativo.");
+  console.log("SIGTERM recebido — ignorado para manter o serviço ativo");
 });
 
 process.on("SIGINT", () => {
-  console.log("SIGINT recebido.");
+  console.log("SIGINT recebido");
 });
