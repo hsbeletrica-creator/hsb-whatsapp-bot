@@ -5,40 +5,58 @@ const axios = require('axios');
 const app = express();
 app.use(express.json());
 
-// URL base da Z-API
+// URL base da Z-API (autenticação pela URL, sem header Bearer)
 const ZAPI_BASE = `https://api.z-api.io/instances/${process.env.ZAPI_INSTANCE}/token/${process.env.ZAPI_TOKEN}`;
 
 app.post('/webhook', async (req, res) => {
+  // ============ LOGS DE DEBUG (vão aparecer nos logs do Railway) ============
+  console.log('=== WEBHOOK CHAMADO ===');
+  console.log('Hora:', new Date().toISOString());
+  console.log('Headers:', JSON.stringify(req.headers, null, 2));
+  console.log('Body completo:', JSON.stringify(req.body, null, 2));
+  // =========================================================================
+
   try {
-    console.log('Webhook recebido:', JSON.stringify(req.body, null, 2));
+    const data = req.body;
 
-    const event = req.body;
+    // Tenta vários formatos comuns que a Z-API pode enviar
+    let phone = data.phone || data.from || data.remoteJid || data.key?.remoteJid;
+    let text = 
+      data.message?.text ||
+      data.text?.message ||
+      data.message?.conversation ||
+      data.message?.extendedTextMessage?.text ||
+      data.text ||
+      data.conversation;
 
-    // Filtra só mensagens recebidas de texto
-    if (event.type !== 'ReceivedCallback' && event.event !== 'message.received') {
+    // Se ainda não achou texto, tenta caminho mais profundo
+    if (!text && data.message) {
+      text = data.message.conversation || data.message.extendedTextMessage?.text;
+    }
+
+    // Ignora se não tiver telefone ou texto
+    if (!phone || !text) {
+      console.log('Ignorando evento: sem phone ou sem texto');
       return res.sendStatus(200);
     }
 
-    const text = event.text?.message || event.message?.text || event.text;
-    const phone = event.phone || event.from;
-
-    if (!text || !phone) {
+    // Ignora mensagens enviadas pelo próprio bot (evita loop infinito)
+    if (data.fromMe || data.isSentByMe || data.owner === true) {
+      console.log('Ignorando mensagem enviada por mim mesmo');
       return res.sendStatus(200);
     }
 
-    // Evita loop (ignora mensagens enviadas pelo bot)
-    if (event.isSentByMe || event.fromMe) {
-      return res.sendStatus(200);
-    }
+    console.log(`Mensagem recebida de ${phone}: ${text}`);
 
+    // Chamada para o GPT-5.2 (ou troque para gpt-4o-mini se quiser mais barato)
     const aiResponse = await axios.post(
       'https://api.openai.com/v1/chat/completions',
       {
-        model: 'gpt-5.2',  // ← Aqui o modelo novo! (ou 'gpt-5.2-thinking' se quiser forçar modo reasoning)
+        model: 'gpt-5.2',
         messages: [
           {
             role: 'system',
-            content: 'Você é o assistente virtual da HSB Elétrica & Renováveis. Responda de forma profissional, clara, objetiva e educada. Use todas as informações da empresa que conhece. Se o cliente pedir orçamento, faça perguntas diretas para qualificar o pedido (ex: tipo de serviço, localização, urgência).'
+            content: 'Você é o assistente virtual da HSB Elétrica & Renováveis. Responda de forma profissional, clara, objetiva e educada. Use todas as informações da empresa que conhece. Se o cliente pedir orçamento, faça perguntas diretas para qualificar o pedido (tipo de serviço, localização, urgência etc.).'
           },
           {
             role: 'user',
@@ -46,32 +64,44 @@ app.post('/webhook', async (req, res) => {
           }
         ],
         temperature: 0.7,
-        max_tokens: 500  // Ajuste se quiser respostas mais longas
+        max_tokens: 600
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
         }
       }
     );
 
     const reply = aiResponse.data.choices[0].message.content.trim();
 
-    await axios.post(
-      `${ZAPI_BASE}/send-text`,
-      {
-        phone: phone,
-        message: reply
-      }
-    );
+    console.log(`Resposta do GPT-5.2: ${reply}`);
 
-    console.log(`Resposta enviada para ${phone}: ${reply}`);
+    // Envia resposta de volta pelo WhatsApp via Z-API
+    await axios.post(`${ZAPI_BASE}/send-text`, {
+      phone: phone,
+      message: reply
+    });
+
+    console.log(`Resposta enviada com sucesso para ${phone}`);
+
     res.sendStatus(200);
   } catch (error) {
-    console.error('Erro:', error.response?.data || error.message);
+    console.error('ERRO no processamento:');
+    if (error.response) {
+      console.error('Status:', error.response.status);
+      console.error('Data:', error.response.data);
+    } else {
+      console.error('Message:', error.message);
+    }
     res.sendStatus(500);
   }
+});
+
+// Rota simples para testar se o servidor está vivo
+app.get('/', (req, res) => {
+  res.send('HSB WhatsApp Bot com GPT-5.2 está online! 🚀');
 });
 
 const PORT = process.env.PORT || 3000;
